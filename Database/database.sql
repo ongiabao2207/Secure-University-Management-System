@@ -1,0 +1,123 @@
+CREATE TABLE DONVI (
+    MADV VARCHAR2(10) PRIMARY KEY,
+    TENDV NVARCHAR2(100) NOT NULL,
+    LOAIDV VARCHAR2(10) CHECK (LOAIDV IN ('Khoa', 'Phòng')),
+    TRGDV VARCHAR2(10) -- Trưởng đơn vị là nhân viên
+);
+
+CREATE TABLE NHANVIEN (
+    MANV VARCHAR2(10) PRIMARY KEY,
+    HOTEN NVARCHAR2(100) NOT NULL,
+    PHAI VARCHAR2(4) CHECK (PHAI IN ('Nam', 'Nữ')),
+    NGSINH DATE NOT NULL,
+    LUONG NUMBER(10,2) NOT NULL,
+    PHUCAP NUMBER(10,2),
+    DT VARCHAR2(15) UNIQUE,
+    VAITRO VARCHAR2(20) CHECK (VAITRO IN ('NVCB', 'GV', 'NV PDT', 'NV PKT', 'NV TCHC', 'NV CTSV', 'TRGDV')),
+    MADV VARCHAR2(10) NOT NULL,
+    FOREIGN KEY (MADV) REFERENCES DONVI(MADV)
+);
+
+ALTER TABLE DONVI ADD CONSTRAINT FK_TRGDV FOREIGN KEY (TRGDV) REFERENCES NHANVIEN(MANV);
+
+CREATE TABLE SINHVIEN (
+    MASV VARCHAR2(10) PRIMARY KEY,   
+    HOTEN NVARCHAR2(100),             
+    PHAI NVARCHAR2(4),              
+    NGSINH DATE,                     
+    DCHI NVARCHAR2(255),           
+    DT VARCHAR(15),                  
+    KHOA VARCHAR(10),                
+    TINHTRANG NVARCHAR2(50),       
+    FOREIGN KEY (KHOA) REFERENCES DONVI(MADV)  
+   
+);
+CREATE OR REPLACE PROCEDURE insert_sinhvien (
+    p_MASV IN VARCHAR2,
+    p_HOTEN IN NVARCHAR2,
+    p_PHAI IN NVARCHAR2,
+    p_NGSINH IN DATE,
+    p_DCHI IN NVARCHAR2,
+    p_DT IN VARCHAR2,
+    p_KHOA IN VARCHAR2,
+    p_TINHTRANG IN NVARCHAR2
+) AS
+    v_count INT;
+BEGIN
+    -- Kiểm tra mã khoa có hợp lệ hay không
+    SELECT COUNT(*) INTO v_count
+    FROM DONVI
+    WHERE MADV = p_KHOA AND LOAIDV = 'Khoa';
+
+    IF v_count = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Mã khoa không hợp lệ hoặc không phải là khoa');
+    ELSE
+        -- Chèn dữ liệu vào bảng SINHVIEN nếu mã khoa hợp lệ
+        INSERT INTO SINHVIEN (
+            MASV, HOTEN, PHAI, NGSINH, DCHI, DT, KHOA, TINHTRANG
+        ) VALUES (
+            p_MASV, p_HOTEN, p_PHAI, p_NGSINH, p_DCHI, p_DT, p_KHOA, p_TINHTRANG
+        );
+    END IF;
+END insert_sinhvien;
+
+CREATE TABLE HOCPHAN (
+    MAHP VARCHAR2(10) PRIMARY KEY,
+    TENHP NVARCHAR2(100) NOT NULL,
+    SOTC NUMBER(2) NOT NULL,
+    STLT NUMBER(2),
+    STTH NUMBER(2),
+    MADV VARCHAR2(10) NOT NULL,
+    FOREIGN KEY (MADV) REFERENCES DONVI(MADV)
+);
+CREATE OR REPLACE PROCEDURE insert_hocphan (
+    p_MAHP IN VARCHAR2,
+    p_TENHP IN NVARCHAR2,
+    p_SOTC IN NUMBER,
+    p_STLT IN NUMBER,
+    p_STTH IN NUMBER,
+    p_MADV IN VARCHAR2
+) AS
+    v_count INT;
+BEGIN
+    -- Kiểm tra mã đơn vị (MADV) có hợp lệ và là Khoa không
+    SELECT COUNT(*) INTO v_count
+    FROM DONVI
+    WHERE MADV = p_MADV AND LOAIDV = 'Khoa';  -- Kiểm tra mã khoa
+
+    IF v_count = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Mã khoa không hợp lệ hoặc không phải là khoa');
+    ELSE
+        -- Chèn dữ liệu vào bảng HOCPHAN nếu mã khoa hợp lệ
+        INSERT INTO HOCPHAN (
+            MAHP, TENHP, SOTC, STLT, STTH, MADV
+        ) VALUES (
+            p_MAHP, p_TENHP, p_SOTC, p_STLT, p_STTH, p_MADV
+        );
+    END IF;
+END insert_hocphan;
+
+
+CREATE TABLE MOMON (
+    MAMM VARCHAR2(10) PRIMARY KEY,
+    MAHP VARCHAR2(10) NOT NULL,
+    MAGV VARCHAR2(10) NOT NULL,
+    HK NUMBER(1) CHECK (HK IN (1,2,3)),
+    NAM NUMBER(4) NOT NULL,
+    FOREIGN KEY (MAHP) REFERENCES HOCPHAN(MAHP),
+    FOREIGN KEY (MAGV) REFERENCES NHANVIEN(MANV)
+);
+
+CREATE TABLE DANGKY (
+    MASV VARCHAR2(10) NOT NULL,
+    MAMM VARCHAR2(10) NOT NULL,
+    DIEMTH NUMBER(4,2),
+    DIEMQT NUMBER(4,2),
+    DIEMCK NUMBER(4,2),
+    DIEMTK NUMBER(4,2),
+    PRIMARY KEY (MASV, MAMM),
+    FOREIGN KEY (MASV) REFERENCES SINHVIEN(MASV),
+    FOREIGN KEY (MAMM) REFERENCES MOMON(MAMM)
+);
+
+
