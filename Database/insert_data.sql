@@ -13,7 +13,7 @@ INSERT INTO DONVI (MADV, TENDV, LOAIDV, TRGDV) VALUES ('MOITRUONG', 'Khoa Môi t
 INSERT INTO DONVI (MADV, TENDV, LOAIDV, TRGDV) VALUES ('BAOCHI', 'Khoa Báo chí', 'Khoa', NULL);
 INSERT INTO DONVI (MADV, TENDV, LOAIDV, TRGDV) VALUES ('TC-KT', 'Khoa Tài chính - Kế toán', 'Khoa', NULL);
 INSERT INTO DONVI (MADV, TENDV, LOAIDV, TRGDV) VALUES ('GIAODUC', 'Khoa Giáo dục', 'Khoa', NULL);
-INSERT INTO DONVI (MADV, TENDV, LOAIDV, TRGDV) VALUES ('GIAODUC', 'Khoa Vật lý', 'Khoa', NULL);
+INSERT INTO DONVI (MADV, TENDV, LOAIDV, TRGDV) VALUES ('VATLY', 'Khoa Vật lý', 'Khoa', NULL);
 --bảng học phần
 EXEC insert_hocphan('HP001', N'Lập trình C', 3, 2, 1, 'CNTT');
 EXEC insert_hocphan('HP002', N'Tin học đại cương', 4, 3, 1, 'CNTT');
