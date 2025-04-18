@@ -1,6 +1,7 @@
 -- Mở pluggable database
 ALTER PLUGGABLE DATABASE QLHP OPEN;
 ALTER SESSION SET CONTAINER = QLHP;
+
 -- Kiểm tra schema hiện tại
 SELECT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') AS current_schema FROM DUAL;
 -- Tạo schema VPD 
@@ -64,11 +65,13 @@ CREATE ROLE Role_SV;
 -- Gán quyền cho các role
 GRANT SELECT, UPDATE(ĐCHI, ĐT) ON VPD.SINHVIEN TO Role_SV;
 GRANT SELECT, UPDATE(TINHTRANG) ON VPD.SINHVIEN TO Role_NV_PDT;
-GRANT SELECT ON VPD.NHANVIEN TO Role_NV_PDT;
 GRANT SELECT, INSERT, DELETE, UPDATE ON VPD.SINHVIEN TO Role_NV_CTSV;
+GRANT SELECT ON VPD.SINHVIEN TO Role_GV;
 GRANT SELECT ON VPD.NHANVIEN TO Role_NV_CTSV;
 GRANT SELECT ON VPD.NHANVIEN_VPD TO Role_NV_CTSV;
+--GRANT SELECT ON VPD.NHANVIEN TO Role_GV;
 GRANT SELECT ON VPD.DONVI TO Role_NV_CTSV;
+GRANT SELECT ON VPD.NHANVIEN TO Role_NV_PDT;
 
 -- Tạo user mẫu và gán role cho user
 BEGIN
@@ -78,31 +81,36 @@ EXCEPTION
 END;
 /
 BEGIN
-   EXECUTE IMMEDIATE 'CREATE USER NV0612 IDENTIFIED BY 123';
+   EXECUTE IMMEDIATE 'CREATE USER NV0624 IDENTIFIED BY 123';
 EXCEPTION
    WHEN OTHERS THEN NULL;
 END;
 /
 BEGIN
-   EXECUTE IMMEDIATE 'CREATE USER NV0003 IDENTIFIED BY 123';
+   EXECUTE IMMEDIATE 'CREATE USER NV0720 IDENTIFIED BY 123';
 EXCEPTION
    WHEN OTHERS THEN NULL;
 END;
 /
 BEGIN
-   EXECUTE IMMEDIATE 'CREATE USER NV0042 IDENTIFIED BY 123';
+   EXECUTE IMMEDIATE 'CREATE USER NV0742 IDENTIFIED BY 123';
 EXCEPTION
    WHEN OTHERS THEN NULL;
 END;
 /
-GRANT CREATE SESSION TO NV0003, SV0001, NV0612, NV0042;
+BEGIN
+   EXECUTE IMMEDIATE 'CREATE USER NV0762 IDENTIFIED BY 123';
+EXCEPTION
+   WHEN OTHERS THEN NULL;
+END;
+/
+GRANT CREATE SESSION TO NV0720, SV0001, NV0624, NV0742, NV0762;
 -- Gán role cho user
 GRANT Role_SV TO SV0001;
-GRANT Role_NV_PDT TO NV0042;
-GRANT Role_NV_CTSV TO NV0003;
-GRANT Role_GV TO NV0612;
-
-
+GRANT Role_NV_PDT TO NV0720;
+GRANT Role_NV_PKT TO NV0742;
+GRANT Role_GV TO NV0624;
+GRANT Role_NV_CTSV TO NV0762;
 -- Tạo hàm SV_POLICY_FUNC 
 CREATE OR REPLACE FUNCTION VPD.SINHVIEN_POLICY_FUNC(
     p_schema IN VARCHAR2,
@@ -110,6 +118,7 @@ CREATE OR REPLACE FUNCTION VPD.SINHVIEN_POLICY_FUNC(
 ) RETURN VARCHAR2 AS
     v_user VARCHAR2(30) := SYS_CONTEXT('USERENV', 'SESSION_USER');
     v_madv VARCHAR2(30);
+    v_vaitro VARCHAR2(30);
 BEGIN
     DBMS_OUTPUT.PUT_LINE('User: ' || v_user);
 
@@ -117,71 +126,31 @@ BEGIN
         RETURN '1=1';
     ELSIF v_user LIKE 'SV%' THEN
         RETURN 'MASV = ''' || v_user || '''';
-    ELSE
-        SELECT MADV INTO v_madv 
+    END IF;
+
+    BEGIN
+        SELECT MADV, VAITRO INTO v_madv, v_vaitro
         FROM VPD.NHANVIEN_VPD 
         WHERE MANV = v_user 
         AND ROWNUM = 1;
 
         DBMS_OUTPUT.PUT_LINE('MADV: ' || NVL(v_madv, 'NULL'));
 
-        IF v_madv = 'CTSV' THEN
+        IF v_vaitro = 'NV CTSV' THEN
             RETURN '1=1';
-        ELSIF v_madv = 'PDT' THEN
+        ELSIF v_vaitro = 'NV PDT' THEN
             RETURN '1=1';
-        ELSIF v_madv IS NOT NULL THEN
+        ELSIF v_vaitro = 'GV' THEN
             RETURN 'KHOA = ''' || v_madv || '''';
         ELSE
             RETURN '1=0';
         END IF;
-    END IF;
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        DBMS_OUTPUT.PUT_LINE('No data found for user: ' || v_user);
-        RETURN '1=0';
-    WHEN TOO_MANY_ROWS THEN
-        DBMS_OUTPUT.PUT_LINE('Too many rows for user: ' || v_user);
-        RETURN '1=0';
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Error in SINHVIEN_POLICY_FUNC: ' || SQLERRM);
-        RETURN '1=0';
-END;
-/
-
--- Tạo hàm GV_POLICY_FUNC 
-CREATE OR REPLACE FUNCTION VPD.GV_POLICY_FUNC (
-    obj_schema VARCHAR2,
-    obj_name   VARCHAR2
-) RETURN VARCHAR2
-AS
-    v_user  VARCHAR2(30);
-    v_madv  VARCHAR2(30);
-    v_vaitro VARCHAR2(30);
-BEGIN
-    v_user := SYS_CONTEXT('USERENV', 'SESSION_USER');
-
-    IF v_user = 'VPD' OR SYS_CONTEXT('USERENV', 'ISDBA') = 'TRUE' THEN
-        RETURN '1=1';
-    END IF;
-
-    BEGIN
-        SELECT MADV INTO v_madv 
-        FROM VPD.NHANVIEN_VPD 
-        WHERE MANV = v_user 
-        AND ROWNUM = 1;
-
-        DBMS_OUTPUT.PUT_LINE('MADV: ' || NVL(v_madv, 'NULL'));
-        
-        IF v_madv = 'PDT' THEN
-            RETURN '1=1'; -- Cho phép PDT thấy toàn bộ bảng
-        ELSIF v_vaitro = 'GV' THEN
-            RETURN 'KHOA = ''' || v_madv || ''''; -- Giới hạn GV theo MADV
-        ELSE
-            RETURN '1=0';
-        END IF;
-    
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No data found for user: ' || v_user);
+            RETURN '1=0';
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Error in SINHVIEN_POLICY_FUNC: ' || SQLERRM);
             RETURN '1=0';
     END;
 END;
@@ -196,14 +165,6 @@ BEGIN
       policy_function  => 'SINHVIEN_POLICY_FUNC',
       statement_types  => 'SELECT, UPDATE, DELETE',
       update_check     => TRUE
-   );
-   DBMS_RLS.ADD_POLICY(
-      object_schema    => 'VPD',
-      object_name      => 'NHANVIEN',
-      policy_name      => 'GV_POLICY',
-      function_schema  => 'VPD',
-      policy_function  => 'GV_POLICY_FUNC',
-      statement_types  => 'SELECT'
    );
 END;
 /
@@ -268,21 +229,23 @@ BEGIN
     END IF;
 END;
 /
-
 -- Kiểm tra
-ALTER SESSION SET CURRENT_SCHEMA = VPD;
-
 SELECT * FROM VPD.SINHVIEN;
 SELECT * FROM VPD.NHANVIEN;
 SELECT * FROM VPD.DONVI;
 
+
 UPDATE VPD.SINHVIEN
-SET TINHTRANG = 'Bảo lưu'
-WHERE MASV = 'SV0001';
+SET TINHTRANG = N'Đang học'
+WHERE MASV = 'SV4001';
+
+UPDATE VPD.SINHVIEN
+SET ĐT = '0999999999'
+WHERE MASV = 'SV4001';
 
 BEGIN
     VPD.insert_sinhvien(
-        p_MASV   => 'SV1000',
+        p_MASV   => 'SV4001',
         p_HOTEN  => N'Nguyen Thi Hoa',
         p_PHAI   => N'Nữ',
         p_NGSINH => TO_DATE('2001-02-15', 'YYYY-MM-DD'),
@@ -294,16 +257,13 @@ BEGIN
 END;
 /
 
-/*BEGIN
+/*
+BEGIN
    DBMS_RLS.DROP_POLICY(
       object_schema => 'VPD',
       object_name   => 'SINHVIEN',
       policy_name   => 'SINHVIEN_POLICY'
    );
-   DBMS_RLS.DROP_POLICY(
-      object_schema => 'VPD',
-      object_name   => 'NHANVIEN',
-      policy_name   => 'GV_POLICY'
-   );
 END;
-/*/
+/
+*/
