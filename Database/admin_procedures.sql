@@ -27,6 +27,31 @@ SELECT ROLE, ROLE_ID, PASSWORD_REQUIRED, AUTHENTICATION_TYPE FROM DBA_ROLES
 ORDER BY ROLE_ID;
 
 
+-- Proc drop view nếu đã tồn tại
+select count(*) from USER_VIEWS WHERE VIEW_NAME = 'V_DONVI_SV4001';
+CREATE OR REPLACE PROCEDURE SP_Drop_View (
+    view_name IN VARCHAR2
+)
+AS
+    cnt NUMBER;
+    sql_str VARCHAR2(1000);
+BEGIN
+    cnt := 0;
+    -- Kiểm tra xem view có tồn tại không
+    SELECT COUNT(*) INTO cnt
+    FROM USER_VIEWS
+    WHERE VIEW_NAME = UPPER(TRIM(view_name));
+
+    IF cnt > 0 THEN
+        -- Nếu tồn tại thì thực hiện DROP VIEW
+        sql_str := 'DROP VIEW ' || TRIM(view_name);
+        EXECUTE IMMEDIATE sql_str;
+    END IF;
+END;
+/
+
+
+
 -- Proc kiểm tra user đã tồn tại hay chưa, trả về 0 nếu không tồn tại, trả về 1 nếu đã tồn tại
 CREATE OR REPLACE PROCEDURE SP_Check_User_Exists (
     user_ in char,
@@ -289,3 +314,113 @@ END;
 --exec SP_CHANGE_ROLE_PASSWORD('test_role', '123', '123');
 --SELECT ROLE, ROLE_ID, PASSWORD_REQUIRED, AUTHENTICATION_TYPE FROM DBA_ROLES WHERE ROLE = 'test_role'
 --ORDER BY ROLE_ID;
+
+--GRANT SELECT(MATB, NOIDUNG) ON ADMIN_OLS.THONGBAO TO SV4001;
+
+-- Proc cấp quyền select trên thuộc tính của một bảng cho một user hoặc role (không dùng grant select vì trong Oracle không cho phép grant select trên vài thuộc tính của bảng)
+CREATE OR REPLACE PROCEDURE SP_Grant_Select_Privilege (
+    user_role in char,
+    schema_name in char,
+    table_name in char,
+    column_name in char,
+    withgrantoption in char
+)
+AS
+    view_string char(100);
+    is_exists number;
+BEGIN
+    -- Kiểm tra user/role có tồn tại hay chưa
+    SP_Check_Role_Exists(user_role, is_exists);
+    if is_exists = 0 then
+        SP_Check_User_Exists(user_role, is_exists);
+    end if;
+    if is_exists = 0 then
+        RAISE_APPLICATION_ERROR(-20011, 'User/Role "' || user_role || '" does not exist!');
+    else
+        begin
+            view_string := 'V_' || table_name || '_' || user_role ;
+--            SP_Drop_View(view_string);
+            EXECUTE IMMEDIATE 'CREATE OR REPLACE VIEW ' || view_string || ' AS SELECT ' ||column_name || ' FROM ' ||schema_name || '.' || table_name;
+            EXECUTE IMMEDIATE 'GRANT SELECT ON ' || view_string || ' TO ' || user_role || ' ' || withgrantoption;
+        end;
+    end if;
+END;
+/
+
+--Test tạo view và phân quyền select cho user SV4001
+--exec SP_Grant_Select_Privilege('SV4001', 'QLDH', 'DONVI', 'MADV, TENDV', 'WITH GRANT OPTION');
+
+--xem các view đã tạo
+--SELECT * FROM ALL_OBJECTS WHERE OBJECT_TYPE = 'VIEW' and OWNER = 'SYS';
+
+-- Proc cấp quyền UPDATE trên thuộc tính của một bảng cho một user hoặc role
+CREATE OR REPLACE PROCEDURE SP_Grant_Update_Privilege (
+    user_role in char,
+    table_name in char,
+    column_name in char,
+    withgrantoption char
+)
+as
+    is_exists number;
+begin
+    -- Kiểm tra user/role có tồn tại hay chưa
+    SP_Check_Role_Exists(user_role, is_exists);
+    if is_exists = 0 then
+        SP_Check_User_Exists(user_role, is_exists);
+    end if;
+    if is_exists = 0 then
+        RAISE_APPLICATION_ERROR(-20012, 'User/Role "' || user_role || '" does not exist!');
+    else
+        EXECUTE IMMEDIATE 'GRANT UPDATE (' || column_name || ') ON ' || table_name || ' TO ' || user_role || ' ' || withgrantoption;
+    end if;
+end;
+/
+--exec SP_Grant_Update_Privilege('SV4001','DONVI','TenDV', '');
+
+
+-- Proc cấp quyền insert trên một bảng cho một user hoặc role
+CREATE OR REPLACE PROCEDURE SP_Grant_Insert_Privilege(
+    user_role in char,
+    table_name in char,
+    withgrantoption char
+)
+as
+    is_exists number;
+begin
+    -- Kiểm tra user/role có tồn tại hay chưa
+    SP_Check_Role_Exists(user_role, is_exists);
+    if is_exists = 0 then
+        SP_Check_User_Exists(user_role, is_exists);
+    end if;
+    if is_exists = 0 then
+        RAISE_APPLICATION_ERROR(-20013, 'User/Role "' || user_role || '" does not exist!');
+    else
+        EXECUTE IMMEDIATE 'GRANT INSERT ON ' || table_name || ' TO ' || user_role || ' ' || withgrantoption;
+    end if;
+end;
+/
+--exec SP_Grant_Insert_Privilege('SV4001','DONVI', '');
+
+
+-- Proc cấp quyền delete trên một bảng cho một user hoặc role
+CREATE OR REPLACE PROCEDURE SP_Grant_Delete_Privilege(
+    user_role in char,
+    table_name in char,
+    withgrantoption char
+)
+as
+    is_exists number;
+begin
+    -- Kiểm tra user/role có tồn tại hay chưa
+    SP_Check_Role_Exists(user_role, is_exists);
+    if is_exists = 0 then
+        SP_Check_User_Exists(user_role, is_exists);
+    end if;
+    if is_exists = 0 then
+        RAISE_APPLICATION_ERROR(-20014, 'User/Role "' || user_role || '" does not exist!');
+    else
+        EXECUTE IMMEDIATE 'GRANT DELETE ON ' || table_name || ' TO ' || user_role || ' ' || withgrantoption;
+    end if;
+end;
+/
+--exec SP_Grant_Delete_Privilege('SV4001','DONVI','WITH GRANT OPTION');
