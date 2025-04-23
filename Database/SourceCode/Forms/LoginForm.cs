@@ -1,20 +1,19 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
-using Oracle.ManagedDataAccess.Client; // NHỚ: chỉ thêm dòng này nếu đã cài NuGet
+using Oracle.ManagedDataAccess.Client;
+using WindowsFormsApp.Data;
 
-namespace WindowsFormsApp
+namespace WindowsFormsApp.Forms
 {
     public partial class LoginForm : Form
     {
-        Label lblTitle, lblUsername, lblPassword, lblRole;
+        Label lblTitle, lblUser, lblPass;
         TextBox txtUsername, txtPassword;
-        ComboBox cbRole;
         Button btnLogin, btnClose;
 
         public LoginForm()
         {
-            InitializeComponent();
             InitUI();
         }
 
@@ -32,81 +31,24 @@ namespace WindowsFormsApp
                 ForeColor = Color.SteelBlue,
                 AutoSize = true
             };
-            // Căn giữa ngang:
             lblTitle.Location = new Point((this.ClientSize.Width - lblTitle.PreferredWidth) / 2, 50);
             this.Controls.Add(lblTitle);
 
-            lblUsername = new Label()
-            {
-                Text = "TÊN ĐĂNG NHẬP",
-                Location = new Point(200, 130),
-                AutoSize = true
-            };
-            this.Controls.Add(lblUsername);
-
-            txtUsername = new TextBox()
-            {
-                Location = new Point(350, 125),
-                Width = 200
-            };
+            lblUser = new Label() { Text = "TÊN ĐĂNG NHẬP", Location = new Point(200, 150), AutoSize = true };
+            txtUsername = new TextBox() { Location = new Point(350, 145), Width = 200 };
+            this.Controls.Add(lblUser);
             this.Controls.Add(txtUsername);
 
-            lblPassword = new Label()
-            {
-                Text = "MẬT KHẨU",
-                Location = new Point(200, 180),
-                AutoSize = true
-            };
-            this.Controls.Add(lblPassword);
-
-            txtPassword = new TextBox()
-            {
-                Location = new Point(350, 175),
-                Width = 200,
-                UseSystemPasswordChar = true
-            };
+            lblPass = new Label() { Text = "MẬT KHẨU", Location = new Point(200, 200), AutoSize = true };
+            txtPassword = new TextBox() { Location = new Point(350, 195), Width = 200, UseSystemPasswordChar = true };
+            this.Controls.Add(lblPass);
             this.Controls.Add(txtPassword);
 
-            lblRole = new Label()
-            {
-                Text = "VAI TRÒ",
-                Location = new Point(200, 230),
-                AutoSize = true
-            };
-            this.Controls.Add(lblRole);
-
-            cbRole = new ComboBox()
-            {
-                Location = new Point(350, 225),
-                Width = 200,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            cbRole.Items.AddRange(new string[] {
-                "Trưởng đơn vị",
-                "Giảng viên",
-                "Nhân viên Phòng Khảo thí",
-                "Nhân viên Phòng Đào tạo",
-                "Nhân viên Phòng Tổ chức Hành chính",
-                "Sinh viên"
-            });
-            cbRole.SelectedIndex = 0;
-            this.Controls.Add(cbRole);
-
-            btnLogin = new Button()
-            {
-                Text = "ĐĂNG NHẬP",
-                Location = new Point(350, 280),
-                Width = 100
-            };
+            btnLogin = new Button() { Text = "ĐĂNG NHẬP", Location = new Point(350, 250), Width = 100 };
             btnLogin.Click += BtnLogin_Click;
             this.Controls.Add(btnLogin);
 
-            btnClose = new Button()
-            {
-                Text = "Close",
-                Location = new Point(700, 420),
-                Width = 60
-            };
+            btnClose = new Button() { Text = "Close", Location = new Point(700, 420), Width = 60 };
             btnClose.Click += (s, e) => Application.Exit();
             this.Controls.Add(btnClose);
         }
@@ -115,7 +57,6 @@ namespace WindowsFormsApp
         {
             string user = txtUsername.Text.Trim();
             string pass = txtPassword.Text.Trim();
-            string role = cbRole.SelectedItem.ToString();
 
             if (user == "" || pass == "")
             {
@@ -125,16 +66,74 @@ namespace WindowsFormsApp
 
             try
             {
-                string connStr = $"DATA SOURCE=localhost:1521/xe;USER ID={user};PASSWORD={pass};";
-                using (OracleConnection conn = new OracleConnection(connStr))
+                using (var conn = DbConnectionHelper.GetConnection(user, pass))
                 {
                     conn.Open();
-                    MessageBox.Show("Đăng nhập thành công!");
 
-                    // mở form khác nếu cần
-                    // FormThongBao frm = new FormThongBao(user);
-                    // frm.Show();
-                    // this.Hide();
+                    // Kiểm tra trong bảng NHANVIEN
+                    string sqlNv = "SELECT HOTEN, VAITRO FROM QLDH.NHANVIEN WHERE MANV = :manv";
+                    using (var cmdNv = new OracleCommand(sqlNv, conn))
+                    {
+                        cmdNv.Parameters.Add("manv", user);
+                        using (var readerNv = cmdNv.ExecuteReader())
+                        {
+                            if (readerNv.Read())
+                            {
+                                string hoten = readerNv.GetString(0);
+                                string vaitro = readerNv.GetString(1);
+
+                                UserSession.Username = user;
+                                UserSession.Password = pass;
+                                UserSession.Hoten = hoten;
+                                UserSession.Role = vaitro;
+
+                                Form nextForm = null;
+                                switch (vaitro)
+                                {
+                                    case "TRGDV": nextForm = new TrgdvForm(); break;
+                                    case "GV": nextForm = new GvForm(); break;
+                                    case "NV PDT": nextForm = new NvPdtForm(); break;
+                                    case "NV PKT": nextForm = new NvPktForm(); break;
+                                    case "NV TCHC": nextForm = new NvTchcForm(); break;
+                                    case "NV CTSV": nextForm = new NvCtsvForm(); break;
+                                    case "NVCB": nextForm = new NvCbForm(); break;
+                                    default:
+                                        MessageBox.Show("Vai trò chưa được hỗ trợ: " + vaitro);
+                                        return;
+                                }
+
+                                nextForm.Show();
+                                this.Hide();
+                                return;
+                            }
+                        }
+                    }
+
+                    // Nếu không phải nhân viên, kiểm tra bảng SINHVIEN
+                    string sqlSv = "SELECT HOTEN FROM QLDH.SINHVIEN WHERE MASV = :masv";
+                    using (var cmdSv = new OracleCommand(sqlSv, conn))
+                    {
+                        cmdSv.Parameters.Add("masv", user);
+                        using (var readerSv = cmdSv.ExecuteReader())
+                        {
+                            if (readerSv.Read())
+                            {
+                                string hoten = readerSv.GetString(0);
+
+                                UserSession.Username = user;
+                                UserSession.Password = pass;
+                                UserSession.Hoten = hoten;
+                                UserSession.Role = "SINHVIEN";
+
+                                var studentForm = new StudentForm();
+                                studentForm.Show();
+                                this.Hide();
+                                return;
+                            }
+                        }
+                    }
+
+                    MessageBox.Show("Không tìm thấy người dùng.");
                 }
             }
             catch (Exception ex)
