@@ -342,6 +342,7 @@ BEGIN
 --            SP_Drop_View(view_string);
             EXECUTE IMMEDIATE 'CREATE OR REPLACE VIEW ' || view_string || ' AS SELECT ' ||column_name || ' FROM ' ||schema_name || '.' || table_name;
             EXECUTE IMMEDIATE 'GRANT SELECT ON ' || view_string || ' TO ' || user_role || ' ' || withgrantoption;
+            dbms_output.put_line(view_string);
         end;
     end if;
 END;
@@ -424,3 +425,29 @@ begin
 end;
 /
 --exec SP_Grant_Delete_Privilege('SV4001','DONVI','WITH GRANT OPTION');
+
+
+CREATE OR REPLACE PROCEDURE SP_REVOKE_PRIVIL (
+    user_role in char,
+    privil in varchar,
+    table_view in char,
+    result_ out int
+)
+AS
+BEGIN
+    EXECUTE IMMEDIATE ('REVOKE ' || privil || ' ON ' || table_view || ' from ' || user_role);
+    result_ := 1;
+    EXCEPTION
+    WHEN OTHERS THEN
+        result_ := 0;
+END;
+/
+--
+
+--SET SERVEROUTPUT ON;
+--DECLARE RES INT;
+--BEGIN
+--    SP_REVOKE_PRIVIL('SV4001','SELECT', 'V_DONVI_SV4001', RES);
+--    dbms_output.put_line(res);
+--END;
+
