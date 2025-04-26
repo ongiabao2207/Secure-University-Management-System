@@ -39,21 +39,21 @@ STARTUP;
 SHOW CON_NAME;
 
 -- 2. Ghi nhật ký dùng Standard Audit
-ALTER SESSION SET CONTAINER = PROJECT_AUDIT_PDB;
+ALTER SESSION SET CONTAINER = QLHP;
 -- Audit mọi hành động CRUD trên bảng SINHVIEN
-AUDIT SELECT, INSERT, UPDATE, DELETE ON project_audit.SINHVIEN BY ACCESS;
+AUDIT SELECT, INSERT, UPDATE, DELETE ON PDB_ADMIN.SINHVIEN BY ACCESS;
 
 -- Audit khi người dùng không có quyền xóa mà vẫn cố DELETE trên DANGKY
-AUDIT DELETE ON project_audit.DANGKY WHENEVER NOT SUCCESSFUL;
+AUDIT DELETE ON PDB_ADMIN.DANGKY WHENEVER NOT SUCCESSFUL;
 
 -- Audit việc gọi thủ tục (PROCEDURE) ví dụ PROC_CAPNHAT_DIEM
-AUDIT EXECUTE ON project_audit.insert_sinhvien;
-AUDIT EXECUTE ON project_audit.insert_hocphan;
+AUDIT EXECUTE ON PDB_ADMIN.insert_sinhvien;
+AUDIT EXECUTE ON PDB_ADMIN.insert_hocphan;
 
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON SINHVIEN TO project_audit;
-GRANT EXECUTE ON insert_sinhvien TO project_audit;
-GRANT EXECUTE ON insert_hocphan TO project_audit;
+--GRANT SELECT, INSERT, UPDATE, DELETE ON SINHVIEN TO project_audit;
+--GRANT EXECUTE ON insert_sinhvien TO project_audit;
+--GRANT EXECUTE ON insert_hocphan TO project_audit;
 
 
 
@@ -62,7 +62,7 @@ SHOW PARAMETER audit_trail;
 
 -- Kịch bản kiểm tra đề xuất – Standard Audit
 -- 1. Truy vấn bảng SINHVIEN
-SELECT * FROM SINHVIEN;
+SELECT * FROM pdb_admin.SINHVIEN;
 
 SELECT * FROM DBA_OBJ_AUDIT_OPTS WHERE OBJECT_NAME = 'SINHVIEN';
 
@@ -156,16 +156,16 @@ ORDER BY TIMESTAMP DESC;
 -- Tạo user 
 CREATE USER pkt_user IDENTIFIED BY matkhau123;
 GRANT CONNECT, RESOURCE TO pkt_user;
-GRANT UPDATE ON PROJECT_AUDIT.DANGKY TO pkt_user;
+GRANT UPDATE ON pdb_admin.DANGKY TO pkt_user;
 GRANT RESTRICTED SESSION TO pkt_user;
 
 -- Thực hiện ghi nhật ký bằng Fine-Grained Audit (FGA)
-ALTER SESSION SET CONTAINER = PROJECT_AUDIT_PDB;
+ALTER SESSION SET CONTAINER = QLHP;
 
 -- Cập nhật bảng DANGKY khi không phải NV PKT
 BEGIN
   DBMS_FGA.ADD_POLICY(
-    object_schema   => 'PROJECT_AUDIT',
+    object_schema   => 'pdb_admin',
     object_name     => 'DANGKY',
     policy_name     => 'AUD_UPDATE_DANGKY_NOT_PKT',
     audit_condition => 'SYS_CONTEXT(''USERENV'',''SESSION_USER'') != ''PKT_USER''',
