@@ -2,18 +2,18 @@ ALTER SESSION SET CONTAINER=PDB_QLDH;
 show con_name;
 
 
---CREATE USER QLDH IDENTIFIED BY 123456;
---GRANT CREATE SESSION TO QLDH;
---GRANT ALTER SESSION TO QLDH;
---GRANT RESOURCE TO QLDH; 
---GRANT CREATE VIEW TO QLDH;
---GRANT SELECT ANY DICTIONARY TO QLDH;
---GRANT CREATE USER, ALTER USER, DROP USER TO QLDH;
---GRANT CREATE ROLE, ALTER ANY ROLE, DROP ANY ROLE TO QLDH;
---GRANT GRANT ANY ROLE TO QLDH;
---GRANT GRANT ANY PRIVILEGE TO QLDH;
---GRANT GRANT ANY OBJECT PRIVILEGE TO QLDH;
---ALTER USER QLDH QUOTA UNLIMITED ON SYSTEM;
+CREATE USER QLDH IDENTIFIED BY 123456;
+GRANT CREATE SESSION TO QLDH;
+GRANT ALTER SESSION TO QLDH;
+GRANT RESOURCE TO QLDH; 
+GRANT CREATE VIEW TO QLDH;
+GRANT SELECT ANY DICTIONARY TO QLDH;
+GRANT CREATE USER, ALTER USER, DROP USER TO QLDH;
+GRANT CREATE ROLE, ALTER ANY ROLE, DROP ANY ROLE TO QLDH;
+GRANT GRANT ANY ROLE TO QLDH;
+GRANT GRANT ANY PRIVILEGE TO QLDH;
+GRANT GRANT ANY OBJECT PRIVILEGE TO QLDH;
+ALTER USER QLDH QUOTA UNLIMITED ON SYSTEM;
 
 
 
@@ -221,13 +221,13 @@ BEGIN
     end if;
 END;
 /
-declare
-    res number;
-begin
-   SP_Check_Role_Exists('SV', res);
-   dbms_output.put_line(res);
-end;
-/
+--declare
+--    res number;
+--begin
+--   SP_Check_Role_Exists('SV', res);
+--   dbms_output.put_line(res);
+--end;
+--/
 
 
 -- Proc tạo mới role
@@ -451,3 +451,64 @@ END;
 --    dbms_output.put_line(res);
 --END;
 
+
+
+-- Proc cấp role cho 1 user/role khác
+CREATE OR REPLACE PROCEDURE SP_GRANT_ROLE (
+    role_name in varchar2,
+    user_role in varchar2,
+    with_admin_option in varchar2
+)
+AS
+    is_exists number;
+BEGIN
+    -- Kiểm tra role sắp được cấp có tồn tại chưa
+    SP_Check_Role_Exists(role_name, is_exists);
+    if is_exists = 0 then
+        RAISE_APPLICATION_ERROR(-20015, 'Role "' || role_name || '" does not exist!');
+    else
+    begin
+        -- Kiểm tra user/role có tồn tại hay chưa
+        SP_Check_Role_Exists(user_role, is_exists);
+        if is_exists = 0 then
+            SP_Check_User_Exists(user_role, is_exists);
+        end if;
+        
+        if is_exists = 0 then
+            RAISE_APPLICATION_ERROR(-20016, 'User/Role "' || user_role || '" does not exist!');
+        else
+            EXECUTE IMMEDIATE 'GRANT  ' || role_name || ' TO ' || user_role || ' ' || with_admin_option;
+        end if;
+    end;
+    end if;
+END;
+/
+
+-- Proc thu hồi role từ 1 user/role khác
+CREATE OR REPLACE PROCEDURE SP_REVOKE_ROLE (
+    role_name IN VARCHAR2,
+    user_role IN VARCHAR2
+)
+AS
+    is_exists NUMBER;
+BEGIN
+    -- Kiểm tra role cần thu hồi có tồn tại không
+    SP_Check_Role_Exists(role_name, is_exists);
+    IF is_exists = 0 THEN
+        RAISE_APPLICATION_ERROR(-20017, 'Role "' || role_name || '" does not exist!');
+    END IF;
+
+    -- Kiểm tra user/role có tồn tại không
+    SP_Check_Role_Exists(user_role, is_exists);
+    IF is_exists = 0 THEN
+        SP_Check_User_Exists(user_role, is_exists);
+    END IF;
+
+    IF is_exists = 0 THEN
+        RAISE_APPLICATION_ERROR(-20018, 'User/Role "' || user_role || '" does not exist!');
+    END IF;
+
+    -- Thu hồi role
+    EXECUTE IMMEDIATE 'REVOKE ' || role_name || ' FROM ' || user_role;
+END;
+/
